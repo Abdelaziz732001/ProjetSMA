@@ -7,7 +7,7 @@ import jade.core.AID;
 
 public class AgentPatient extends Agent {
     private String nom = "Patient";
-    private boolean rendezVousDemande = false; // Indicateur pour éviter la demande infinie
+    private boolean demandeEnvoyee = false; // Pour éviter les demandes répétées
 
     @Override
     protected void setup() {
@@ -18,44 +18,48 @@ public class AgentPatient extends Agent {
     }
 
     private class DemandeRendezVousBehaviour extends Behaviour {
-        private boolean reponseRecue = false;
+        private boolean rendezVousConfirme = false;
 
         @Override
         public void action() {
-            if (!reponseRecue && !rendezVousDemande) {
-                // Demander un rendez-vous seulement si aucune demande n'a encore été faite
-                System.out.println("AgentPatient demande un rendez-vous...");
-                
-                // Créer un message pour demander un rendez-vous au médecin
+            if (!demandeEnvoyee) {
+                System.out.println("AgentPatient prépare une demande de rendez-vous...");
+
+                // Création et envoi de la demande de rendez-vous
                 ACLMessage demande = new ACLMessage(ACLMessage.REQUEST);
-                AID medecinAID = new AID("medecin", AID.ISLOCALNAME);
+                AID medecinAID = new AID("AgentMedecin", AID.ISLOCALNAME);
                 demande.addReceiver(medecinAID);
-                demande.setContent("Demande de rendez-vous");
+                demande.setContent("Je souhaite un rendez-vous.");
                 send(demande);
-                
-                rendezVousDemande = true; // Marquer que la demande a été faite
+
+                System.out.println("AgentPatient a envoyé une demande au médecin.");
+                demandeEnvoyee = true; // Éviter les demandes multiples
             } else {
-                // Attendre la réponse de l'AgentMedecin
+                // Attente de réponse du médecin
                 ACLMessage reponse = receive();
                 if (reponse != null) {
-                    if (reponse.getPerformative() == ACLMessage.CONFIRM) {
-                        System.out.println("AgentPatient a reçu la confirmation du rendez-vous.");
-                        reponseRecue = true;
-                    } else if (reponse.getPerformative() == ACLMessage.PROPOSE) {
-                        System.out.println("AgentMedecin propose une nouvelle date : " + reponse.getContent());
-                        // L'AgentPatient reprogramme le rendez-vous ici
-                        // Remettre à false pour redemander le rendez-vous
-                        rendezVousDemande = false;
+                    switch (reponse.getPerformative()) {
+                        case ACLMessage.CONFIRM:
+                            System.out.println("AgentPatient a reçu une confirmation : " + reponse.getContent());
+                            rendezVousConfirme = true;
+                            break;
+                        case ACLMessage.PROPOSE:
+                            System.out.println("AgentPatient a reçu une proposition : " + reponse.getContent());
+                            // L'agent peut ici traiter la proposition ou renvoyer une autre demande
+                            demandeEnvoyee = false; // Relancer une demande si besoin
+                            break;
+                        default:
+                            System.out.println("AgentPatient a reçu une réponse inattendue.");
                     }
                 } else {
-                    block();  // Si aucune réponse, l'agent attend
+                    block(); // Attendre de nouveaux messages
                 }
             }
         }
 
         @Override
         public boolean done() {
-            return reponseRecue;  // Ce comportement est terminé quand la réponse est reçue
+            return rendezVousConfirme; // Comportement terminé après confirmation
         }
     }
 }
